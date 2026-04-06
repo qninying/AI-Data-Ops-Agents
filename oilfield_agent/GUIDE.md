@@ -121,12 +121,50 @@ streamlit run dashboard/app.py
 ### 4. Graph Architecture
 Our system enforces strict, deterministic routing schemas dynamically built alongside LangGraph primitives:
 
-```
-Monitor (Analyzer) → pipeline healthy? → YES → END
-                   → pipeline failing? → YES → Is Confidence ≥ 75%? → NO  → Escalate
-                                                                    → YES → Root Cause 
-                                                                                ↓
-Reporter ← validation passed? ← Executor ← Remediation
+```mermaid
+flowchart TD
+    classDef ext fill:#4F46E5,stroke:#3730A3,stroke-width:2px,color:white
+    classDef api fill:#059669,stroke:#047857,stroke-width:2px,color:white
+    classDef ai fill:#D97706,stroke:#B45309,stroke-width:2px,color:white
+    classDef core fill:#475569,stroke:#334155,stroke-width:2px,color:white
+    classDef db fill:#0284C7,stroke:#0369A1,stroke-width:2px,color:white
+
+    subgraph UI ["User Experience"]
+        Dashboard["Streamlit Dashboard"]:::ext
+    end
+
+    subgraph Backend ["Middleware"]
+        Webhook["FastAPI /analyze Webhook"]:::api
+    end
+
+    subgraph StateMachine ["⛓️ LangGraph Execution Engine"]
+        direction TB
+        Analyzer("🧠 Analyzer Agent<br><small>JSON Evaluator</small>"):::ai
+        RootCause("🧠 Root Cause Agent<br><small>Hypothesis Builder</small>"):::ai
+        Remediation("⚙️ Remediation Mapper<br><small>Native Python Payload</small>"):::core
+        Executor("⚙️ SQL Executor<br><small>Transaction Isolation</small>"):::core
+        Reporter("🧠 Incident Reporter<br><small>Markdown Writer</small>"):::ai
+        
+        Analyzer -->|"Failure Confirmed"| RootCause
+        RootCause --> Remediation
+        Remediation --> Executor
+        Executor -->|"Validation Passed"| Reporter
+    end
+
+    subgraph DBTier ["Persistent Telemetry"]
+        SQL[(Docker SQL Server 2022)]:::db
+    end
+
+    Dashboard -->|"1. Target Dead Run"| Webhook
+    Webhook -->|"2. Spark Graph State"| Analyzer
+    
+    Analyzer -.->|"Reads Base Log"| SQL
+    RootCause -.->|"Extracts Dynamic Evidence"| SQL
+    Executor -.->|"Mutates and Verifies State"| SQL
+    Reporter -.->|"Pushes Report Memory natively"| SQL
+    
+    Reporter -->|"3. Graph Return Vector"| Webhook
+    Webhook -->|"4. Render T-SQL Blocks"| Dashboard
 ```
 
 ### 5. Architectural Paradigms
